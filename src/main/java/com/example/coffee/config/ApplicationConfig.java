@@ -73,6 +73,7 @@ public class ApplicationConfig {
         factoryBean.setJpaProperties(hibernateProperties());
         factoryBean.setJpaVendorAdapter(jpaVendorAdapter());
         factoryBean.afterPropertiesSet();
+
         return factoryBean.getNativeEntityManagerFactory();
     }
 
