@@ -14,6 +14,29 @@
         <link href="https://fonts.googleapis.com/css?family=Lora:400,400i,700,700i" rel="stylesheet" />
         <!-- Core theme CSS (includes Bootstrap)-->
         <link href="css/styles.css" rel="stylesheet" />
+        <script src="https://unpkg.com/vue/dist/vue.min.js"></script>
+        <script>
+            document.addEventListener("DOMContentLoaded", () => {
+                const app = {
+                    el: "#product_list",
+                    data: function(){
+                        return {
+                            items: []
+                        }
+                    },
+                    async mounted(){
+                        const response = await fetch("/api/products");
+
+                        if(response.ok){
+                            const data = await response.json();
+                            this.$data.items = data.data.dishes;
+                        }
+                    }
+                };
+
+                new Vue(app);
+            });
+        </script>
     </head>
     <body>
         <header>
@@ -25,21 +48,46 @@
         <!-- Navigation-->
         <nav class="navbar navbar-expand-lg navbar-dark py-lg-4" id="mainNav">
             <div class="container">
-                <a class="navbar-brand text-uppercase fw-bold d-lg-none" href="index.html">Start Bootstrap</a>
+                <a class="navbar-brand text-uppercase fw-bold d-lg-none" href="/">Start Bootstrap</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
                     <ul class="navbar-nav mx-auto">
-                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="index.html">Home</a></li>
-                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="about.html">About</a></li>
-                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="products.html">Products</a></li>
-                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="store.html">Store</a></li>
+                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="/">Home</a></li>
+                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="/about">About</a></li>
+                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="/products">Products</a></li>
+                        <li class="nav-item px-lg-4"><a class="nav-link text-uppercase" href="/store">Store</a></li>
                     </ul>
                 </div>
             </div>
         </nav>
         <section class="page-section cta">
             <div class="container">
-                <div class="row">
+                <div class="row mb-5">
+                    <div id="products" class="col-xl-9 mx-auto">
+                        <div class="cta-inner bg-faded text-center rounded mb-3">
+                            <h2 class="section-heading mb-5">
+                                <span class="section-heading-upper">Products</span>
+                                <span class="section-heading-lower">Find what you really like</span>
+                            </h2>
+                            <ul class="list-unstyled list-hours mb-5 text-left mx-auto" id="product_list">
+                                <div class="card w-100 mb-3" style="width: 18rem;" v-for="card in items" :key="Math.random()">
+                                    <img :src="card.imagePath" class="card-img-top" alt="...">
+                                    <div class="card-body">
+                                        <h5 class="card-title">
+                                            {{card.title}}
+                                        </h5>
+                                        <p class="card-text">
+                                            {{card.description.slice(0, 30)}}
+                                        </p>
+                                        <a :href="'/product/' + card.id" class="btn btn-primary">
+                                            Read
+                                        </a>
+                                    </div>
+                                </div>
+                            </ul>
+                        </div>
+                    </div>
+
                     <div class="col-xl-9 mx-auto">
                         <div class="cta-inner bg-faded text-center rounded">
                             <h2 class="section-heading mb-5">

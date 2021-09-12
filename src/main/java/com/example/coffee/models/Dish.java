@@ -8,22 +8,25 @@ import javax.persistence.Table;
 @Entity
 @Table(name = "coffee_dishes")
 public class Dish {
-    private Integer id;
+    protected Integer id;
 
     @Column
-    private String title;
+    protected String title;
 
     @Column
-    private Double price;
+    protected Double price;
 
     @Column
-    private Double weight;
+    protected Double weight;
 
     @Column
-    private String description;
+    protected String description;
 
     @Column
-    private String imagePath;
+    protected String imagePath;
+
+    @Column
+    protected String link;
 
     public String getTitle() {
         return title;
@@ -72,5 +75,13 @@ public class Dish {
     @Id
     public Integer getId() {
         return id;
+    }
+
+    public String getLink() {
+        return link;
+    }
+
+    public void setLink(String link) {
+        this.link = link;
     }
 }

@@ -8,34 +8,27 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.introspect.VisibilityChecker;
-import com.nimbusds.jose.util.IOUtils;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.convert.ConversionService;
-import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URL;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
+
 
 
 @Controller()
@@ -44,6 +37,8 @@ public class ApiDishesController {
     private final DishCrudRepository dishRepository;
     private final ResponseService<List<Dish>> responseService;
     private List<Dish> results = new ArrayList<>();
+    Logger logger = LoggerFactory.getLogger(ApiDishesController.class);
+
 
     @Autowired
     ApiDishesController(DishCrudRepository dishCrudRepository,
@@ -53,65 +48,51 @@ public class ApiDishesController {
         this.responseService = responseService;
     }
 
-    @RequestMapping(value = "/api/products", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    @RequestMapping(value = "/api/products", method = RequestMethod.GET)
     @ResponseBody
-    private void products(HttpServletResponse httpServletResponse,
-                          PrintWriter printWriter) throws Throwable
+    private void products(HttpServletResponse httpServletResponse) throws Throwable
     {
         Consumer<List<Dish>> listConsumer = dishes -> {
             responseService.setData(Map.of("dishes", dishes));
 
             try {
-                String result = new ObjectMapper().writeValueAsString(responseService);
+                ObjectWriter objectMapper = new ObjectMapper().writer().withDefaultPrettyPrinter();
+                String result = objectMapper.writeValueAsString(responseService);
 
-                printWriter.print(result);
+                httpServletResponse.setContentType("application/json");
+                httpServletResponse.setCharacterEncoding("UTF-8");
+
+                httpServletResponse.getWriter().write(result);
                 httpServletResponse.setStatus(HttpServletResponse.SC_OK);
-            } catch (JsonProcessingException e) {
+            } catch (Throwable e) {
                 e.printStackTrace();
+
+                httpServletResponse.setStatus(500);
             }
         };
 
         if(dishRepository.count() > 0){
-            dishRepository.findAllDishes()
-                    .thenAccept(listConsumer)
-                    .exceptionally(v -> {
-                        httpServletResponse.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                        return null;
-                    });
+            results = dishRepository.findAll();
         } else {
-            HttpRequest request = HttpRequest.newBuilder(new URI(URL)).GET().build();
+            Document productsDocument = Jsoup.connect(URL)
+                    .userAgent("Chrome/4.0.249.0 Safari/532.5")
+                    .referrer("http://www.google.com")
+                    .get();
+            Elements elements = productsDocument.select("div.goods-tile");
 
-            HttpClient.newHttpClient()
-                    .sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenApply(v -> {
-                        try {
-                            Document productsDocument = Jsoup.connect(URL)
-                                    .userAgent("Chrome/4.0.249.0 Safari/532.5")
-                                    .referrer("http://www.google.com")
-                                    .get();
-                            Elements elements = productsDocument.select("div.goods-tile");
-
-                            for (Element element: elements) {
-                                this.setUpDish(element);
-                            }
-                        } catch (Throwable e) {
-                            e.printStackTrace();
-                        }
-
-                        return results;
-                    })
-                    .thenAccept(listConsumer)
-            ;
+            for (Element element: elements) {
+                this.setUpDish(element);
+            }
         }
+
+        listConsumer.accept(results);
     }
 
     private void setUpDish(Element element){
         try{
             String title = element.select("span.goods-tile__title").text();
-            String imageRef = element.select("a.goods-tile__picture > img").attr("src");
             String priceStr = element.select("span.goods-tile__price-value").text();
             Double price = Double.parseDouble(priceStr);
-
             String url = element.select("a.goods-tile__heading").attr("href");
 
             Document productDocument = Jsoup.connect(url)
@@ -126,6 +107,10 @@ public class ApiDishesController {
                 descr.append(p.text());
             }
 
+            String imageRef = productDocument.select("img.picture-container__picture").attr("src");
+
+            logger.info("Image src is " + imageRef);
+
             Pattern pattern = Pattern.compile("\\d{3}\\s{1}");
             Matcher matcher = pattern.matcher(title);
 
@@ -137,24 +122,27 @@ public class ApiDishesController {
                 dish.setTitle(title);
                 dish.setImagePath(imageRef);
                 dish.setPrice(price);
+                dish.setLink(url);
 
-                if(descr.length() > 300){
-                   dish.setDescription(descr.substring(0, 300));
+                if(descr.length() > 1900){
+                   dish.setDescription(descr.substring(0, 1900) + "....");
                 } else {
                    dish.setDescription(descr.toString());
                 }
 
-                Deque<Dish> list1 = new ArrayDeque<>(dishRepository.findAll(Sort.by("id").descending()));
-                Dish dish1 = list1.peekFirst();
-                int id = 1;
+                if(descr.length() > 0){
+                    Deque<Dish> list1 = new ArrayDeque<>(dishRepository.findAll(Sort.by("id").descending()));
+                    Dish dish1 = list1.peekFirst();
+                    int id = 1;
 
-                if(dish1 != null && dish1.getId() > 0){
-                    id = dish1.getId() + 1;
+                    if(dish1 != null && dish1.getId() > 0){
+                        id = dish1.getId() + 1;
+                    }
+
+                    dish.setId(id);
+                    results.add(dish);
+                    dishRepository.save(dish);
                 }
-
-                dish.setId(id);
-                results.add(dish);
-                dishRepository.save(dish);
             }
         } catch(IOException exception){
             exception.printStackTrace();
