@@ -5,4 +5,5 @@
 * Java
 * Spring Data JPA
 
-Warning! The app is under development
+![img](./screenshots/screen1.png)
+![img](./screenshots/screen2.png)
